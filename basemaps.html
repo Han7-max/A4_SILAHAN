@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard WebGIS Modern</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Leaflet Draw -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+  <!-- Leaflet Fullscreen -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen@2.4.0/Control.FullScreen.css" />
+  <script src="https://unpkg.com/leaflet.fullscreen@2.4.0/Control.FullScreen.js"></script>
+
+  <!-- shp-write & GeometryUtil -->
+  <script src="https://unpkg.com/shp-write@0.3.3/shpwrite.js"></script>
+  <script src="https://unpkg.com/leaflet-geometryutil"></script>
+
+  <style>
+    #map { height: 100%; }
+    .leaflet-bar button { background-color: #1f2937; color: white; }
+    .leaflet-popup-content-wrapper { font-size: 0.9rem; }
+  </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-blue-600 text-white p-4 text-center shadow-md">
+    <h1 class="text-2xl font-bold">SILAHAN WebGIS - Sistem Informasi Lahan</h1>
+  </header>
+
+  <!-- Main Content -->
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Sidebar -->
+    <aside class="w-72 bg-white p-4 shadow-md overflow-y-auto">
+      <h2 class="text-lg font-semibold mb-4">Legenda</h2>
+      <div id="legend" class="text-sm space-y-2">
+        <p class="italic">Klik nama untuk mengubah</p>
+      </div>
+
+      <div class="mt-6">
+        <h2 class="text-lg font-semibold mb-2">Unduh Data</h2>
+        <button onclick="downloadGeoJSON()" class="w-full mb-2 bg-green-600 hover:bg-green-700 text-white py-2 rounded">Unduh GeoJSON</button>
+        <button onclick="downloadSHP()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded">Unduh SHP</button>
+      </div>
+    </aside>
+
+    <!-- Map Area -->
+    <div class="flex-1 relative">
+      <div id="map" class="absolute top-0 right-0 bottom-0 left-0 z-0"></div>
+    </div>
+  </div>
+
+  <script>
+    const baseLayers = {
+      "Light": L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© Carto', subdomains: 'abcd'
+      }),
+      "Street": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }),
+      "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '© Esri'
+      }),
+      "Dark": L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© Carto', subdomains: 'abcd'
+      })
+    };
+
+    const map = L.map('map', {
+      center: [-7.482, 110.695],
+      zoom: 15,
+      layers: [baseLayers["Light"]],
+      fullscreenControl: true,
+      fullscreenControlOptions: { position: 'topleft' }
+    });
+
+    L.control.layers(baseLayers).addTo(map);
+
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+      position: 'topright',
+      draw: {
+        polygon: true,
+        polyline: true,
+        marker: true,
+        rectangle: false,
+        circle: false,
+        circlemarker: false
+      },
+      edit: { featureGroup: drawnItems, remove: true }
+    });
+    map.addControl(drawControl);
+
+    function updateLegend() {
+      const div = document.getElementById('legend');
+      div.innerHTML = '<p class="italic">Klik nama untuk mengubah</p>';
+      drawnItems.eachLayer(layer => {
+        const name = layer.feature?.properties?.name || 'Tanpa Nama';
+        div.innerHTML += `<p onclick="renameFeature(${L.stamp(layer)})" class="cursor-pointer text-blue-600 hover:underline">${name}</p>`;
+      });
+    }
+
+    function updatePopup(layer) {
+      const props = layer.feature.properties;
+      let content = `<strong>${props.name}</strong><br>`;
+      if (props.luas) content += `Luas: ${props.luas}<br>`;
+      if (props.panjang) content += `Panjang: ${props.panjang}<br>`;
+      if (props.koordinat) content += `Koordinat: ${props.koordinat}<br>`;
+      layer.bindPopup(content);
+    }
+
+    map.on(L.Draw.Event.CREATED, function (e) {
+      const layer = e.layer;
+      const props = { name: prompt("Nama fitur:") || "Tanpa Nama" };
+
+      if (e.layerType === 'polygon') {
+        const area = L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]);
+        props.luas = (area / 10000).toFixed(2) + ' ha';
+      }
+      if (e.layerType === 'polyline') {
+        let total = 0;
+        const latlngs = layer.getLatLngs();
+        for (let i = 1; i < latlngs.length; i++) {
+          total += latlngs[i - 1].distanceTo(latlngs[i]);
+        }
+        props.panjang = (total / 1000).toFixed(2) + ' km';
+      }
+      if (e.layerType === 'marker') {
+        const latlng = layer.getLatLng();
+        props.koordinat = `[${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}]`;
+      }
+
+      layer.feature = { type: "Feature", properties: props, geometry: {} };
+      updatePopup(layer);
+      drawnItems.addLayer(layer);
+      updateLegend();
+      saveToLocal();
+    });
+
+    map.on('draw:edited', function () {
+      drawnItems.eachLayer(updatePopup);
+      updateLegend();
+      saveToLocal();
+    });
+
+    map.on('draw:deleted', function () {
+      updateLegend();
+      saveToLocal();
+    });
+
+    function saveToLocal() {
+      const geojson = drawnItems.toGeoJSON();
+      localStorage.setItem("geojsonData", JSON.stringify(geojson));
+    }
+
+    function loadFromLocal() {
+      const data = localStorage.getItem("geojsonData");
+      if (data) {
+        const geojson = JSON.parse(data);
+        L.geoJSON(geojson, {
+          onEachFeature: (feature, layer) => {
+            layer.feature = feature;
+            updatePopup(layer);
+            drawnItems.addLayer(layer);
+          }
+        });
+        updateLegend();
+      }
+    }
+
+    window.renameFeature = function (id) {
+      drawnItems.eachLayer(layer => {
+        if (L.stamp(layer) === id) {
+          const name = prompt("Ubah nama fitur:", layer.feature?.properties?.name || "");
+          if (name !== null) {
+            layer.feature.properties.name = name;
+            updatePopup(layer);
+            updateLegend();
+            saveToLocal();
+          }
+        }
+      });
+    };
+
+    function downloadGeoJSON() {
+      const geojson = drawnItems.toGeoJSON();
+      const blob = new Blob([JSON.stringify(geojson)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = "data.geojson";
+      a.click();
+    }
+
+    function downloadSHP() {
+      const geojson = drawnItems.toGeoJSON();
+      shpwrite.download(geojson, { file: "data" });
+    }
+
+    loadFromLocal();
+  </script>
+</body>
+</html>

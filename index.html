@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>SILAHAN Terpadu</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    .hidden { display: none; }
+
+    /* Login Styles */
+    body.login-mode {
+      background: url('https://images.unsplash.com/photo-1506377585622-bedcbb027afc?auto=format&fit=crop&w=1950&q=80') no-repeat center center fixed;
+      background-size: cover;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .overlay {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      background-color: rgba(255, 255, 255, 0.95);
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      width: 360px;
+      text-align: center;
+    }
+
+    .container input, .container button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 14px;
+      border-radius: 8px;
+    }
+
+    .container input {
+      border: 1px solid #ccc;
+    }
+
+    .container button {
+      background-color: #2980b9;
+      color: white;
+      border: none;
+    }
+
+    .container button:hover {
+      background-color: #1c6691;
+    }
+
+    .password-container {
+      position: relative;
+    }
+
+    .toggle-icon {
+      position: absolute;
+      top: 50%;
+      right: 10px;
+      transform: translateY(-50%);
+      cursor: pointer;
+      color: #555;
+    }
+
+    .link {
+      font-size: 13px;
+      margin-top: 10px;
+      cursor: pointer;
+      color: #2980b9;
+      text-decoration: underline;
+    }
+
+    .error {
+      color: red;
+      font-size: 12px;
+    }
+
+    .password-rules {
+      text-align: left;
+      font-size: 12px;
+      color: #555;
+      margin-top: 5px;
+    }
+
+    /* App Styles */
+    #app {
+      height: 100%;
+      display: none;
+      flex-direction: column;
+    }
+
+    nav {
+      background-color: #2c3e50;
+      color: white;
+      padding: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    nav button {
+      margin-left: 10px;
+      padding: 8px 14px;
+      background-color: #2980b9;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    nav button:hover {
+      background-color: #1c6691;
+    }
+
+    #iframeContainer {
+      flex: 1;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+  </style>
+</head>
+<body class="login-mode">
+  <!-- Login Section -->
+  <div id="loginSection">
+    <div class="overlay"></div>
+    <div class="container">
+      <h1>SILAHAN</h1>
+      <div class="subtitle">SILAHAN Menyapa Anda, Siap Membantu</div>
+
+      <!-- Login Form -->
+      <div id="loginForm">
+        <input type="text" id="loginUsername" placeholder="Username" required>
+        <div class="password-container">
+          <input type="password" id="loginPassword" placeholder="Password" required>
+          <i class="fas fa-eye toggle-icon" onclick="togglePassword('loginPassword', this)"></i>
+        </div>
+        <button onclick="login()">Login</button>
+        <div class="link" onclick="switchToRegister()">Belum punya akun? Daftar di sini</div>
+      </div>
+
+      <!-- Register Form -->
+      <div id="registerForm" class="hidden">
+        <input type="text" id="registerUsername" placeholder="Username baru" required>
+        <div class="password-container">
+          <input type="password" id="registerPassword" placeholder="Password" required>
+          <i class="fas fa-eye toggle-icon" onclick="togglePassword('registerPassword', this)"></i>
+        </div>
+        <div class="password-rules">
+          <strong>Syarat password:</strong>
+          <ul style="margin: 5px 0 0 15px; padding: 0;">
+            <li>Minimal 6 karakter</li>
+            <li>Mengandung huruf besar dan kecil</li>
+            <li>Mengandung angka</li>
+          </ul>
+        </div>
+        <div id="registerError" class="error"></div>
+        <button onclick="register()">Daftar</button>
+        <div class="link" onclick="switchToLogin()">Sudah punya akun? Login di sini</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aplikasi Web -->
+  <div id="app">
+    <nav>
+      <div><strong>🌐 SILAHAN WebGIS</strong></div>
+      <div>
+        <button onclick="loadPage('silahan.html')">SILAHAN</button>
+        <button onclick="loadPage('basemaps.html')">Basemaps</button>
+        <button onclick="logout()">Logout</button>
+      </div>
+    </nav>
+    <div id="iframeContainer">
+      <iframe id="mainFrame" src="index.html"></iframe>
+    </div>
+  </div>
+
+  <script>
+    function switchToRegister() {
+      document.getElementById("loginForm").classList.add("hidden");
+      document.getElementById("registerForm").classList.remove("hidden");
+    }
+
+    function switchToLogin() {
+      document.getElementById("registerForm").classList.add("hidden");
+      document.getElementById("loginForm").classList.remove("hidden");
+    }
+
+    function togglePassword(inputId, icon) {
+      const input = document.getElementById(inputId);
+      if (input.type === "password") {
+        input.type = "text";
+        icon.classList.remove("fa-eye");
+        icon.classList.add("fa-eye-slash");
+      } else {
+        input.type = "password";
+        icon.classList.remove("fa-eye-slash");
+        icon.classList.add("fa-eye");
+      }
+    }
+
+    function validatePassword(password) {
+      return (
+        password.length >= 6 &&
+        /[A-Z]/.test(password) &&
+        /[a-z]/.test(password) &&
+        /[0-9]/.test(password)
+      );
+    }
+
+    function register() {
+      const username = document.getElementById("registerUsername").value.trim();
+      const password = document.getElementById("registerPassword").value;
+      const error = document.getElementById("registerError");
+      error.textContent = "";
+
+      if (!validatePassword(password)) {
+        error.textContent = "Password tidak memenuhi syarat.";
+        return;
+      }
+
+      let users = JSON.parse(localStorage.getItem("users")) || [];
+      if (users.find(u => u.username === username) || username === "admin") {
+        error.textContent = "Username sudah digunakan.";
+        return;
+      }
+
+      users.push({ username, password });
+      localStorage.setItem("users", JSON.stringify(users));
+      alert("Registrasi berhasil. Silakan login.");
+      switchToLogin();
+    }
+
+    function login() {
+      const username = document.getElementById("loginUsername").value;
+      const password = document.getElementById("loginPassword").value;
+
+      if (username === "admin" && password === "admin123") {
+        sessionStorage.setItem("loggedInUser", username);
+        showApp();
+        return;
+      }
+
+      const users = JSON.parse(localStorage.getItem("users")) || [];
+      const user = users.find(u => u.username === username && u.password === password);
+      if (user) {
+        sessionStorage.setItem("loggedInUser", username);
+        showApp();
+      } else {
+        alert("Username atau password salah.");
+      }
+    }
+
+    function showApp() {
+      document.body.classList.remove("login-mode");
+      document.getElementById("loginSection").style.display = "none";
+      document.getElementById("app").style.display = "flex";
+      document.getElementById("mainFrame").src = "index.html";
+    }
+
+    function logout() {
+      sessionStorage.clear();
+      document.getElementById("app").style.display = "none";
+      document.getElementById("loginSection").style.display = "block";
+      document.body.classList.add("login-mode");
+    }
+
+    function loadPage(page) {
+      document.getElementById("mainFrame").src = page;
+    }
+
+    window.onload = function () {
+      const user = sessionStorage.getItem("loggedInUser");
+      if (user) showApp();
+    };
+  </script>
+</body>
+</html>
